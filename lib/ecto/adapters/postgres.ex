@@ -292,6 +292,23 @@ defmodule Ecto.Adapters.Postgres do
     res
   end
 
+  defp do_lock_for_migrations(:row_lock, meta, opts, _config, fun) do
+    {:ok, res} =
+      transaction(meta, opts, fn ->
+        source = "row_lock_table"
+        table = if prefix = opts[:prefix], do: ~s|"#{prefix}"."#{source}"|, else: ~s|"#{source}"|
+
+#        {:ok, _} = Ecto.Adapters.SQL.query(meta, "create table if not exists row_lock_table (key integer primary key, counter integer)", [], opts)
+#        {:ok, _} = Ecto.Adapters.SQL.query(meta, "UPSERT INTO row_lock_table VALUES (1,0);", [], opts)
+        {:ok, _} = Ecto.Adapters.SQL.query(meta, "select counter from #{table} where key=1 for update", [], opts)
+
+        IO.puts("acquire lock")
+        fun.()
+      end)
+
+    res
+  end
+
   defp advisory_lock(meta, opts, lock, retry_state, fun) do
     result = checkout(meta, opts, fn ->
       case Ecto.Adapters.SQL.query(meta, "SELECT pg_try_advisory_lock(#{lock})", [], opts) do
